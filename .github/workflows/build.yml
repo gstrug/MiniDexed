@@ -1,26 +1,32 @@
 name: Build
 
-env:
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
 on:
-  push:
-    branches: [ main ]
-  pull_request:
+  workflow_dispatch:
+    inputs:
+      build64:
+        description: "Build 64-bit kernels"
+        required: true
+        default: true
+        type: boolean
+      build32:
+        description: "Build 32-bit kernels"
+        required: true
+        default: true
+        type: boolean
 
 jobs:
   build64:
+    if: ${{ inputs.build64 }}
     name: Build 64-bit kernels
     runs-on: ubuntu-22.04
     outputs:
-      artifact-path: ${{ steps.upload64.outputs.artifact-path }}
       git_info: ${{ steps.gitinfo.outputs.git_info }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Compute Git Info for Artifact Name
         id: gitinfo
-        run: echo "::set-output name=git_info::$(date +%Y-%m-%d)-$(git rev-parse --short HEAD)"
+        run: echo "git_info=$(date +%Y-%m-%d)-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Get specific commits of git submodules
         run: sh -ex ./submod.sh
@@ -32,7 +38,6 @@ jobs:
         run: |
           sed -i "s/Loading.../$(date +%Y%m%d)-$(git rev-parse --short HEAD)/g" src/userinterface.cpp
 
-      # Install 64-bit toolchain (aarch64)
       - name: Install 64-bit toolchain
         run: |
           set -ex
@@ -73,16 +78,13 @@ jobs:
           cp ./src/config.txt ./src/minidexed.ini ./src/performance.ini sdcard/
           cp ./getsysex.sh sdcard/
           echo "usbspeed=full" > sdcard/cmdline.txt
-          # Performances
           git clone https://github.com/Banana71/Soundplantage --depth 1
           cp -r ./Soundplantage/performance ./Soundplantage/*.pdf ./sdcard/
-          # Hardware configuration
           cd hwconfig
           sh -ex ./customize.sh
           cd -
           mkdir -p ./sdcard/hardware/
           cp -r ./hwconfig/minidexed_* ./sdcard/minidexed.ini ./sdcard/hardware/
-          # WLAN firmware
           mkdir -p sdcard/firmware
           cp circle-stdlib/libs/circle/addon/wlan/sample/hello_wlan/wpa_supplicant.conf sdcard/
           cd sdcard/firmware
@@ -90,21 +92,19 @@ jobs:
           cd -
 
       - name: Upload 64-bit artifacts
-        id: upload64
         uses: actions/upload-artifact@v4
         with:
           name: MiniDexed_${{ github.run_number }}_${{ steps.gitinfo.outputs.git_info }}_64bit
           path: sdcard/*
 
   build32:
+    if: ${{ inputs.build32 }}
     name: Build 32-bit kernels
     runs-on: ubuntu-22.04
-    outputs:
-      artifact-path: ${{ steps.upload32.outputs.artifact-path }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
-      - name: Compute Git Info for Artifact Name
+      - name: Compute Git Info
         run: echo "GIT_INFO=$(date +%Y-%m-%d)-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Get specific commits of git submodules
@@ -115,9 +115,8 @@ jobs:
 
       - name: Put git hash in startup message
         run: |
-          sed -i "s/Loading.../${{ env.GIT_INFO }}/g" src/userinterface.cpp
+          sed -i "s/Loading.../${GIT_INFO}/g" src/userinterface.cpp
 
-      # Install 32-bit toolchain (arm-none-eabi)
       - name: Install 32-bit toolchain
         run: |
           set -ex
@@ -139,7 +138,6 @@ jobs:
           cp ./src/kernel*.img ./sdcard/
 
       - name: Upload 32-bit artifacts
-        id: upload32
         uses: actions/upload-artifact@v4
         with:
           name: MiniDexed_${{ github.run_number }}_${{ env.GIT_INFO }}_32bit
@@ -160,15 +158,11 @@ jobs:
       - name: Create combined ZIP file
         run: |
           cd combined
-          zip -r ../MiniDexed_${{ github.run_number }}_${{ needs.build64.outputs.git_info }}.zip .
+          zip -r ../MiniDexed_${{ github.run_number }}.zip .
           cd ..
 
-      - name: Upload to GitHub Releases (only when building from main branch)
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: |
-          set -ex
-          export UPLOADTOOL_ISPRERELEASE=true
-          export UPLOADTOOL_PR_BODY="This is a continuous build. Feedback is appreciated."
-          export UPLOADTOOL_BODY="This is a continuous build. Feedback is appreciated."
-          wget -c https://github.com/probonopd/uploadtool/raw/master/upload.sh
-          bash ./upload.sh ./MiniDexed*.zip
+      - name: Upload combined ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: MiniDexed_${{ github.run_number }}_combined
+          path: MiniDexed_*.zip
