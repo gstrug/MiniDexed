@@ -103,6 +103,29 @@ void CConfig::Load (void)
 		}
 	}
 	
+	const char *pMIDIThru2 = m_Properties.GetString ("MIDIThru2");
+	if (pMIDIThru2)
+	{
+		std::string Arg (pMIDIThru2);
+
+		size_t nPos = Arg.find (',');
+		if (nPos != std::string::npos)
+		{
+			m_MIDIThru2In = Arg.substr (0, nPos);
+			m_MIDIThru2Out = Arg.substr (nPos+1);
+
+			if (   m_MIDIThru2In.empty ()
+			    || m_MIDIThru2Out.empty ())
+			{
+				m_MIDIThru2In.clear ();
+				m_MIDIThru2Out.clear ();
+			}
+		}
+	}
+
+	m_bMIDIThruIgnoreClock = m_Properties.GetNumber ("MIDIThruIgnoreClock", 0) != 0;
+	m_bMIDIThruIgnoreActiveSensing = m_Properties.GetNumber ("MIDIThruIgnoreActiveSensing", 0) != 0;
+
 	m_bMIDIRXProgramChange = m_Properties.GetNumber ("MIDIRXProgramChange", 1) != 0;
 	m_bIgnoreAllNotesOff = m_Properties.GetNumber ("IgnoreAllNotesOff", 0) != 0;
 	m_bMIDIAutoVoiceDumpOnPC = m_Properties.GetNumber ("MIDIAutoVoiceDumpOnPC", 0) != 0;
@@ -112,6 +135,7 @@ void CConfig::Load (void)
 	m_nMIDISystemCCVol = m_Properties.GetNumber ("MIDISystemCCVol", 0);
 	m_nMIDISystemCCPan = m_Properties.GetNumber ("MIDISystemCCPan", 0);
 	m_nMIDISystemCCDetune = m_Properties.GetNumber ("MIDISystemCCDetune", 0);
+	m_nMIDIGlobalExpression = m_Properties.GetNumber ("MIDIGlobalExpression", 0);
 
 	m_bLCDEnabled = m_Properties.GetNumber ("LCDEnabled", 0) != 0;
 	m_nLCDPinEnable = m_Properties.GetNumber ("LCDPinEnable", 4);
@@ -194,11 +218,48 @@ void CConfig::Load (void)
 	m_bEncoderEnabled = m_Properties.GetNumber ("EncoderEnabled", 0) != 0;
 	m_nEncoderPinClock = m_Properties.GetNumber ("EncoderPinClock", 10);
 	m_nEncoderPinData = m_Properties.GetNumber ("EncoderPinData", 9);
+	
+	// Parse encoder resolution
+	std::string EncoderResolution = m_Properties.GetString ("EncoderResolution", "full");
+	if (EncoderResolution == "full")
+	{
+		m_nEncoderDetents = 4;
+	}
+	else if (EncoderResolution == "half")
+	{
+		m_nEncoderDetents = 2;
+	}
+	else if (EncoderResolution == "quarter")
+	{
+		m_nEncoderDetents = 1;
+	}
+	else
+	{
+		// Invalid value, use default
+		m_nEncoderDetents = 4;
+	}
 
 	m_bMIDIDumpEnabled  = m_Properties.GetNumber ("MIDIDumpEnabled", 0) != 0;
 	m_bProfileEnabled = m_Properties.GetNumber ("ProfileEnabled", 0) != 0;
-	m_bPerformanceSelectToLoad = m_Properties.GetNumber ("PerformanceSelectToLoad", 1) != 0;
+	m_bPerformanceSelectToLoad = m_Properties.GetNumber ("PerformanceSelectToLoad", 0) != 0;
 	m_bPerformanceSelectChannel = m_Properties.GetNumber ("PerformanceSelectChannel", 0);
+	
+	// Network
+	m_bNetworkEnabled  = m_Properties.GetNumber ("NetworkEnabled", 0) != 0;
+	m_bNetworkDHCP  = m_Properties.GetNumber ("NetworkDHCP", 0) != 0;
+	m_NetworkType = m_Properties.GetString ("NetworkType", "wlan");
+	m_NetworkHostname = m_Properties.GetString ("NetworkHostname", "MiniDexed");
+	if (const u8 *pIP = m_Properties.GetIPAddress("NetworkIPAddress")) m_INetworkIPAddress.Set (pIP);
+	if (const u8 *pIP = m_Properties.GetIPAddress("NetworkSubnetMask")) m_INetworkSubnetMask.Set (pIP);
+	if (const u8 *pIP = m_Properties.GetIPAddress("NetworkDefaultGateway")) m_INetworkDefaultGateway.Set (pIP);
+	m_bSyslogEnabled  = m_Properties.GetNumber ("NetworkSyslogEnabled", 0) != 0;
+	if (const u8 *pIP = m_Properties.GetIPAddress("NetworkDNSServer")) m_INetworkDNSServer.Set (pIP);
+	m_bNetworkFTPEnabled = m_Properties.GetNumber("NetworkFTPEnabled", 0) != 0;
+	if (const u8 *pIP = m_Properties.GetIPAddress ("NetworkSyslogServerIPAddress")) m_INetworkSyslogServerIPAddress.Set (pIP);
+	m_bUDPMIDIEnabled = m_Properties.GetNumber("UDPMIDIEnabled", 0) != 0;
+	if (const u8 *pIP = m_Properties.GetIPAddress("UDPMIDIIPAddress")) m_IUDPMIDIIPAddress.Set (pIP);
+
+	m_nMasterVolume = m_Properties.GetNumber ("MasterVolume", 64);
 }
 
 unsigned CConfig::GetToneGenerators (void) const
@@ -313,6 +374,26 @@ const char *CConfig::GetMIDIThruOut (void) const
 	return m_MIDIThruOut.c_str ();
 }
 
+const char *CConfig::GetMIDIThru2In (void) const
+{
+	return m_MIDIThru2In.c_str ();
+}
+
+const char *CConfig::GetMIDIThru2Out (void) const
+{
+	return m_MIDIThru2Out.c_str ();
+}
+
+bool CConfig::GetMIDIThruIgnoreClock (void) const
+{
+	return m_bMIDIThruIgnoreClock;
+}
+
+bool CConfig::GetMIDIThruIgnoreActiveSensing (void) const
+{
+	return m_bMIDIThruIgnoreActiveSensing;
+}
+
 bool CConfig::GetMIDIRXProgramChange (void) const
 {
 	return m_bMIDIRXProgramChange;
@@ -351,6 +432,11 @@ unsigned CConfig::GetMIDISystemCCPan (void) const
 unsigned CConfig::GetMIDISystemCCDetune (void) const
 {
 	return m_nMIDISystemCCDetune;
+}
+
+unsigned CConfig::GetMIDIGlobalExpression (void) const
+{
+	return m_nMIDIGlobalExpression;
 }
 
 bool CConfig::GetLCDEnabled (void) const
@@ -697,6 +783,11 @@ unsigned CConfig::GetEncoderPinData (void) const
 	return m_nEncoderPinData;
 }
 
+unsigned CConfig::GetEncoderDetents (void) const
+{
+	return m_nEncoderDetents;
+}
+
 bool CConfig::GetMIDIDumpEnabled (void) const
 {
 	return m_bMIDIDumpEnabled;
@@ -715,4 +806,70 @@ bool CConfig::GetPerformanceSelectToLoad (void) const
 unsigned CConfig::GetPerformanceSelectChannel (void) const
 {
 	return m_bPerformanceSelectChannel;
+}
+
+// Network
+bool CConfig::GetNetworkEnabled (void) const
+{
+	return m_bNetworkEnabled;
+}
+
+bool CConfig::GetNetworkDHCP (void) const
+{
+	return m_bNetworkDHCP;
+}
+
+const char *CConfig::GetNetworkType (void) const
+{
+	return m_NetworkType.c_str();
+}
+
+const char *CConfig::GetNetworkHostname (void) const
+{
+	return m_NetworkHostname.c_str();
+}
+
+const CIPAddress& CConfig::GetNetworkIPAddress (void) const
+{	
+	return m_INetworkIPAddress;
+}
+
+const CIPAddress& CConfig::GetNetworkSubnetMask (void) const
+{
+	return m_INetworkSubnetMask;
+}
+
+const CIPAddress& CConfig::GetNetworkDefaultGateway (void) const
+{
+	return m_INetworkDefaultGateway;
+}
+
+const CIPAddress& CConfig::GetNetworkDNSServer (void) const
+{
+	return m_INetworkDNSServer;
+}
+
+bool CConfig::GetSyslogEnabled (void) const
+{
+	return m_bSyslogEnabled;
+}
+
+const CIPAddress& CConfig::GetNetworkSyslogServerIPAddress (void) const
+{
+	return m_INetworkSyslogServerIPAddress;
+}
+
+bool CConfig::GetNetworkFTPEnabled (void) const
+{
+	return m_bNetworkFTPEnabled;
+}
+
+bool CConfig::GetUDPMIDIEnabled (void) const
+{
+	return m_bUDPMIDIEnabled;
+}
+
+const CIPAddress& CConfig::GetUDPMIDIIPAddress (void) const
+{
+	return m_IUDPMIDIIPAddress;
 }

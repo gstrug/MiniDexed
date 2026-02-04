@@ -23,6 +23,7 @@
 #ifndef _config_h
 #define _config_h
 
+#include <circle/net/ipaddress.h>
 #include <fatfs/ff.h>
 #include <Properties/propertiesfatfsfile.h>
 #include <circle/sysconfig.h>
@@ -123,6 +124,10 @@ public:
 	unsigned GetMIDIBaudRate (void) const;
 	const char *GetMIDIThruIn (void) const;	// "" if not specified
 	const char *GetMIDIThruOut (void) const;	// "" if not specified
+	const char *GetMIDIThru2In (void) const;	// "" if not specified
+	const char *GetMIDIThru2Out (void) const;	// "" if not specified
+	bool GetMIDIThruIgnoreClock (void) const;		// false if not specified
+	bool GetMIDIThruIgnoreActiveSensing (void) const;		// false if not specified
 	bool GetMIDIRXProgramChange (void) const;	// true if not specified
 	bool GetIgnoreAllNotesOff (void) const;
 	bool GetMIDIAutoVoiceDumpOnPC (void) const; // false if not specified
@@ -131,6 +136,7 @@ public:
 	unsigned GetMIDISystemCCVol (void) const;
 	unsigned GetMIDISystemCCPan (void) const;
 	unsigned GetMIDISystemCCDetune (void) const;
+	unsigned GetMIDIGlobalExpression (void) const;
 
 	// HD44780 LCD
 	// GPIO pin numbers are chip numbers, not header positions
@@ -229,6 +235,7 @@ public:
 	bool GetEncoderEnabled (void) const;
 	unsigned GetEncoderPinClock (void) const;
 	unsigned GetEncoderPinData (void) const;
+	unsigned GetEncoderDetents (void) const;
 
 	// Debug
 	bool GetMIDIDumpEnabled (void) const;
@@ -237,6 +244,23 @@ public:
 	// Load performance mode. 0 for load just rotating encoder, 1 load just when Select is pushed
 	bool GetPerformanceSelectToLoad (void) const;
 	unsigned GetPerformanceSelectChannel (void) const;
+
+	unsigned GetMasterVolume() const { return m_nMasterVolume; }
+
+	// Network
+	bool GetNetworkEnabled (void) const;
+	bool GetNetworkDHCP (void) const;
+	const char *GetNetworkType (void) const;
+	const char *GetNetworkHostname (void) const;
+	const CIPAddress& GetNetworkIPAddress (void) const;
+	const CIPAddress& GetNetworkSubnetMask (void) const;
+	const CIPAddress& GetNetworkDefaultGateway (void) const;
+	const CIPAddress& GetNetworkDNSServer (void) const;
+	bool GetSyslogEnabled (void) const;
+	const CIPAddress& GetNetworkSyslogServerIPAddress (void) const;
+	bool GetNetworkFTPEnabled (void) const;
+	bool GetUDPMIDIEnabled (void) const;
+	const CIPAddress& GetUDPMIDIIPAddress (void) const;
 
 private:
 	CPropertiesFatFsFile m_Properties;
@@ -259,6 +283,10 @@ private:
 	unsigned m_nMIDIBaudRate;
 	std::string m_MIDIThruIn;
 	std::string m_MIDIThruOut;
+	std::string m_MIDIThru2In;
+	std::string m_MIDIThru2Out;
+	bool m_bMIDIThruIgnoreClock;
+	bool m_bMIDIThruIgnoreActiveSensing;
 	bool m_bMIDIRXProgramChange;
 	bool m_bIgnoreAllNotesOff;
 	bool m_bMIDIAutoVoiceDumpOnPC;
@@ -267,6 +295,7 @@ private:
 	unsigned m_nMIDISystemCCVol;
 	unsigned m_nMIDISystemCCPan;
 	unsigned m_nMIDISystemCCDetune;
+	unsigned m_nMIDIGlobalExpression;
 
 	bool m_bLCDEnabled;
 	unsigned m_nLCDPinEnable;
@@ -346,11 +375,29 @@ private:
 	bool m_bEncoderEnabled;
 	unsigned m_nEncoderPinClock;
 	unsigned m_nEncoderPinData;
+	unsigned m_nEncoderDetents;
 
 	bool m_bMIDIDumpEnabled;
 	bool m_bProfileEnabled;
 	bool m_bPerformanceSelectToLoad;
 	unsigned m_bPerformanceSelectChannel;
+
+	unsigned m_nMasterVolume; // Master volume 0-127
+
+	// Network
+	bool m_bNetworkEnabled;
+	bool m_bNetworkDHCP;
+	std::string m_NetworkType;
+	std::string m_NetworkHostname;
+	CIPAddress m_INetworkIPAddress;
+	CIPAddress m_INetworkSubnetMask;
+	CIPAddress m_INetworkDefaultGateway;
+	CIPAddress m_INetworkDNSServer;
+	bool m_bSyslogEnabled;
+	CIPAddress m_INetworkSyslogServerIPAddress;
+	bool m_bNetworkFTPEnabled;
+	bool m_bUDPMIDIEnabled;
+	CIPAddress m_IUDPMIDIIPAddress;
 };
 
 #endif
